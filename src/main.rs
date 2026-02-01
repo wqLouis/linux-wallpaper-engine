@@ -1,3 +1,5 @@
+mod scene;
+
 use std::{collections::HashMap, path::Path};
 
 use depkg::pkg_parser::{parser::Pkg, tex_parser::Tex};
