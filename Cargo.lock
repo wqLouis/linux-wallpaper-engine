@@ -813,6 +813,7 @@ name = "linux-wallpaperengine"
 version = "0.1.0"
 dependencies = [
  "depkg",
+ "serde",
  "serde_json",
  "wgpu",
 ]
