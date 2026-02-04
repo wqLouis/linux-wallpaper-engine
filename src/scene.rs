@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,15 +13,15 @@ pub struct Root {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Camera {
-    pub center: String,
-    pub eye: String,
-    pub up: String,
+    pub center: Vectors,
+    pub eye: Vectors,
+    pub up: Vectors,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct General {
-    pub ambientcolor: String,
+    pub ambientcolor: Vectors,
     pub bloom: bool,
     pub bloomhdrfeather: f64,
     pub bloomhdriterations: i64,
@@ -31,7 +30,7 @@ pub struct General {
     pub bloomhdrthreshold: f64,
     pub bloomstrength: f64,
     pub bloomthreshold: f64,
-    pub bloomtint: String,
+    pub bloomtint: Vectors,
     pub camerafade: bool,
     pub cameraparallax: bool,
     pub cameraparallaxamount: f64,
@@ -42,18 +41,18 @@ pub struct General {
     pub camerashakeamplitude: f64,
     pub camerashakeroughness: f64,
     pub camerashakespeed: f64,
-    pub clearcolor: String,
+    pub clearcolor: Vectors,
     pub clearenabled: bool,
     pub farz: f64,
     pub fov: f64,
-    pub gravitydirection: String,
+    pub gravitydirection: Vectors,
     pub gravitystrength: f64,
     pub hdr: bool,
     pub nearz: f64,
     pub orthogonalprojection: Orthogonalprojection,
     pub perspectiveoverridefov: f64,
-    pub skylightcolor: String,
-    pub winddirection: String,
+    pub skylightcolor: Vectors,
+    pub winddirection: Vectors,
     pub windenabled: bool,
     pub windstrength: f64,
     pub zoom: f64,
@@ -90,10 +89,10 @@ pub struct Object {
     pub locktransforms: Option<bool>,
     pub anchor: Option<String>,
     pub backgroundbrightness: Option<f64>,
-    pub backgroundcolor: Option<String>,
+    pub backgroundcolor: Option<Vectors>,
     pub blockalign: Option<bool>,
     pub brightness: Option<f64>,
-    pub color: Option<String>,
+    pub color: Option<Vectors>,
     pub depthtest: Option<String>,
     pub font: Option<String>,
     pub horizontalalign: Option<String>,
@@ -145,11 +144,11 @@ pub struct Pass {
 #[serde(rename_all = "camelCase")]
 pub struct Constantshadervalues {
     pub alpha: Option<f64>,
-    pub colorend: Option<String>,
-    pub colorstart: Option<String>,
+    pub colorend: Option<Vectors>,
+    pub colorstart: Option<Vectors>,
     pub distortion: Option<f64>,
     pub feather: Option<f64>,
-    pub scale: Option<Value>, // String or float
+    pub scale: Option<Vectors>, // String or float
     pub smoothness: Option<f64>,
     pub speed: Option<f64>,
     pub threshold: Option<f64>,
@@ -163,9 +162,35 @@ pub struct Constantshadervalues {
     pub exponent: Option<f64>,
     pub amount: Option<f64>,
     pub center: Option<f64>,
-    pub point0: Option<String>,
-    pub point1: Option<String>,
+    pub point0: Option<Vectors>,
+    pub point1: Option<Vectors>,
     pub size: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(untagged)]
+pub enum Vectors {
+    Scaler(f64),
+    Vectors(String),
+}
+
+impl Default for Vectors {
+    fn default() -> Self {
+        Vectors::Scaler(0.0)
+    }
+}
+
+impl Vectors {
+    pub fn parse(&self) -> Option<Vec<f64>> {
+        match self {
+            Vectors::Scaler(s) => Some(vec![s.to_owned()]),
+            Vectors::Vectors(s) => s
+                .split_whitespace()
+                .into_iter()
+                .map(|f| f.parse::<f64>().ok())
+                .collect(),
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
