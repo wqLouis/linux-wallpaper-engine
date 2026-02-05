@@ -1,29 +1,41 @@
 mod scene;
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+};
 
 use depkg::pkg_parser::{parser::Pkg, tex_parser::Tex};
-use indicatif::ProgressBar;
 
 fn main() {
     const PATH: &str = "./test/scene.pkg";
 
     let pkg = Pkg::new(Path::new(PATH));
-    let mut texs: HashMap<(String, String), Vec<u8>> = HashMap::new();
-    let mut jsons: HashMap<String, String> = HashMap::new();
+    let texs: Arc<Mutex<BTreeMap<(String, String), Vec<u8>>>> =
+        Arc::new(Mutex::new(BTreeMap::new()));
+    let mut jsons: BTreeMap<String, String> = BTreeMap::new();
 
-    let pb = ProgressBar::new(pkg.files.len() as u64);
+    let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
-    for (path, payload) in pkg.files.iter() {
-        pb.inc(1);
-        let path = Path::new(path);
+    for (path_str, payload) in pkg.files.iter() {
+        let path = Path::new(path_str);
         match path.extension().unwrap().to_str().unwrap() {
             "tex" => {
-                let tex = Tex::new(payload).unwrap();
-                texs.insert(
-                    (path.to_str().unwrap().to_string(), tex.extension.clone()),
-                    tex.parse_to_rgba().unwrap(),
-                );
+                let payload = payload.to_vec();
+                let path = path_str.clone();
+
+                let tex = Tex::new(&payload).unwrap();
+                let texs_ptr = Arc::clone(&texs);
+
+                let tex_handle = thread::spawn(move || {
+                    let mut texs = texs_ptr.lock().unwrap();
+
+                    texs.insert((path, tex.extension.clone()), tex.parse_to_rgba().unwrap());
+                });
+
+                handles.push(tex_handle);
             }
             "json" => {
                 jsons.insert(
@@ -34,5 +46,14 @@ fn main() {
             _ => {}
         }
     }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    println!("Loaded");
+
     let scene: scene::Root = serde_json::from_str(jsons.get("scene.json").unwrap()).unwrap();
+
+    // scene::render::create_window();
 }
