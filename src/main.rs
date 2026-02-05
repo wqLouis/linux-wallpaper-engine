@@ -8,6 +8,7 @@ use std::{
 };
 
 use depkg::pkg_parser::{parser::Pkg, tex_parser::Tex};
+use indicatif::ProgressBar;
 
 fn main() {
     const PATH: &str = "./test/scene.pkg";
@@ -18,6 +19,7 @@ fn main() {
     let mut jsons: BTreeMap<String, String> = BTreeMap::new();
 
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
+    let pb = ProgressBar::new(pkg.files.len() as u64);
 
     for (path_str, payload) in pkg.files.iter() {
         let path = Path::new(path_str);
@@ -38,6 +40,7 @@ fn main() {
                 handles.push(tex_handle);
             }
             "json" => {
+                pb.inc(1);
                 jsons.insert(
                     path.to_str().unwrap().to_string(),
                     String::from_utf8_lossy(payload).to_string(),
@@ -49,11 +52,11 @@ fn main() {
 
     for handle in handles {
         handle.join().unwrap();
+        pb.inc(1);
     }
-
-    println!("Loaded");
+    pb.finish_and_clear();
 
     let scene: scene::Root = serde_json::from_str(jsons.get("scene.json").unwrap()).unwrap();
 
-    // scene::render::create_window();
+    scene::render::create_window();
 }
