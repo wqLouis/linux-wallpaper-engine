@@ -62,23 +62,14 @@ impl Camera {
 impl Projection {
     pub fn create_projection_matrix(&self, window_size: &PhysicalSize<f32>) -> CameraUniform {
         let view = Mat4::look_at_rh(self.eye, self.center, self.up);
-        let h_ratio = window_size.height / self.height;
-        let scaled_w = self.width * h_ratio;
-        let overflow_w = (scaled_w - window_size.width) / 2.0;
 
-        let projection = Mat4::orthographic_rh(
-            overflow_w,
-            scaled_w - overflow_w,
-            window_size.height,
-            0.0,
-            self.nearz,
-            self.farz,
-        );
+        let bottom = self.height;
+        let top = 0.0;
+        let view_width = self.height * self.aspect;
+        let left = (self.width - view_width) / 2.0;
+        let right = (self.width + view_width) / 2.0;
 
-        println!(
-            "{}",
-            (projection * view) * Vec4::new(2000.0, 1080.0, 0.0, 1.0)
-        );
+        let projection = Mat4::orthographic_rh(left, right, bottom, top, self.nearz, self.farz);
 
         CameraUniform {
             projection: (projection * view).to_cols_array_2d(),

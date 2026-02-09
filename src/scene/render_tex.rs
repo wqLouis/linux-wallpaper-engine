@@ -3,7 +3,7 @@ use depkg::pkg_parser::tex_parser::Tex;
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 
-use crate::scene::Root;
+use crate::scene::{Object, Root};
 
 pub fn create_tex_bind_group(
     device: &Device,

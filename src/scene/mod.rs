@@ -83,7 +83,7 @@ pub struct Object {
     pub angles: Option<String>,
     pub instanceoverride: Option<Instanceoverride>,
     pub particle: Option<String>,
-    pub scale: Option<String>,
+    pub scale: Option<Vectors>,
     #[serde(default)]
     pub effects: Vec<Effect>,
     #[serde(default)]

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -15,7 +16,7 @@ use winit::{
     window::Window,
 };
 
-use crate::scene::{Root, camera::CameraUniform, render_tex::create_tex_bind_group};
+use crate::scene::{Root, Vectors, camera::CameraUniform, render_tex::create_tex_bind_group};
 
 struct WgpuApp {
     window: Arc<Window>,
@@ -342,7 +343,7 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            self.render_main();
+            self.render_main(&render_pass);
             if self.index_len > 0 && self.bind_groups.len() > 0 {
                 // if there is something then add to render pass
                 render_pass.set_bind_group(0, &self.bind_groups[0], &[]);
@@ -358,20 +359,64 @@ impl WgpuApp {
         Ok(())
     }
 
-    fn render_main(&mut self) {
+    fn render_main(&mut self, render_pass: &RenderPass) {
         // Put all the render stuff here
         self.bind_groups.clear();
+
+        for object in &self.objects {
+            if object.image.is_none() {
+                continue;
+            }
+            let image = Path::new(object.image.as_ref().unwrap_or(&"".to_string())).to_path_buf();
+            let origin = &object.origin.parse().unwrap_or_default();
+            let scale = (&object.scale)
+                .as_ref()
+                .unwrap_or(&Vectors::Vectors("1.0 1.0 1.0".to_string()))
+                .parse()
+                .unwrap_or_default();
+            let size = (&object.size).as_ref().unwrap_or(&Vectors::default());
+            let anchor = object.anchor.as_ref().unwrap_or(&"".to_string());
+            let mut tex_path = image.clone();
+            tex_path.set_extension("tex");
+            let tex = self.texs.get(tex_path.to_str().unwrap_or_default());
+
+            if tex.is_none() {
+                continue;
+            }
+
+            let tex = tex.unwrap();
+
+            self.bind_groups.push(create_tex_bind_group(
+                &self.device,
+                &self.queue,
+                &self.bind_group_layout,
+                tex,
+                &self.root,
+                &self.projection_buffer,
+                &self.window.inner_size().cast::<f32>(),
+            ));
+
+            // Self::draw_rect(self, pos, w, h, z);
+        }
+
+        let tex = self.texs.get("materials/画师-雨野拓展.tex").unwrap();
 
         self.bind_groups.push(create_tex_bind_group(
             &self.device,
             &self.queue,
             &self.bind_group_layout,
-            self.texs.get("materials/画师-雨野拓展.tex").unwrap(),
+            tex,
             &self.root,
             &self.projection_buffer,
             &self.window.inner_size().cast::<f32>(),
         ));
-        Self::draw_rect(self, [0.0, 0.0], 1920.0, 1080.0, -1.0);
+        Self::draw_rect(
+            self,
+            [0.0, 0.0],
+            tex.dimension[0] as f32,
+            tex.dimension[1] as f32,
+            -1.0,
+        );
     }
 }
 
