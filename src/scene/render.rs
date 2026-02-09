@@ -31,7 +31,6 @@ struct WgpuApp {
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     projection_buffer: Buffer,
-    bind_groups: Vec<BindGroup>,
     bind_group_layout: BindGroupLayout,
     index_len: u32,
     vertex_len: u32,
@@ -40,6 +39,13 @@ struct WgpuApp {
     objects: Vec<crate::scene::Object>,
     texs: HashMap<String, Tex>,
     jsons: HashMap<String, String>,
+    render_objects: Vec<RenderObject>,
+}
+
+struct RenderObject {
+    bind_group: BindGroup,
+    start_index: u32,
+    end_index: u32,
 }
 
 #[derive(Default)]
@@ -245,6 +251,8 @@ impl WgpuApp {
             cache: None,
         });
 
+        let texs_len = texs.len();
+
         Self {
             window,
             surface,
@@ -254,7 +262,6 @@ impl WgpuApp {
             size,
             size_changed: false,
             render_pipeline,
-            bind_groups: Vec::new(),
             index_len: 0,
             vertex_len: 0,
             vertex_buffer,
@@ -265,6 +272,7 @@ impl WgpuApp {
             texs,
             bind_group_layout,
             projection_buffer,
+            render_objects: Vec::with_capacity(texs_len),
         }
     }
 
@@ -343,13 +351,20 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            self.render_main(&render_pass);
-            if self.index_len > 0 && self.bind_groups.len() > 0 {
+            self.render_main();
+            if self.index_len > 0 {
                 // if there is something then add to render pass
-                render_pass.set_bind_group(0, &self.bind_groups[0], &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-                render_pass.draw_indexed(0..self.index_len, 0, 0..1);
+            }
+
+            for (index, render_object) in self.render_objects.iter().enumerate() {
+                render_pass.set_bind_group(index as u32 % 4, &render_object.bind_group, &[]);
+                render_pass.draw_indexed(
+                    render_object.start_index..render_object.end_index,
+                    0,
+                    0..1,
+                );
             }
         }
 
@@ -359,34 +374,64 @@ impl WgpuApp {
         Ok(())
     }
 
-    fn render_main(&mut self, render_pass: &RenderPass) {
+    fn render_main(&mut self) {
         // Put all the render stuff here
-        self.bind_groups.clear();
+        self.render_objects.clear();
+
+        struct Draw {
+            origin: [f32; 3],
+            scale: [f32; 3],
+            size: [f32; 2],
+            anchor: String,
+            bind_group: BindGroup,
+            tex: Tex,
+        }
+
+        let mut draw_queue: Vec<Draw> = Vec::with_capacity(self.objects.len());
 
         for object in &self.objects {
             if object.image.is_none() {
                 continue;
             }
+            if object.visible.is_some() && object.visible.unwrap() == false {
+                continue;
+            }
+
             let image = Path::new(object.image.as_ref().unwrap_or(&"".to_string())).to_path_buf();
             let origin = &object.origin.parse().unwrap_or_default();
-            let scale = (&object.scale)
+            let scale = &object
+                .scale
                 .as_ref()
                 .unwrap_or(&Vectors::Vectors("1.0 1.0 1.0".to_string()))
                 .parse()
                 .unwrap_or_default();
-            let size = (&object.size).as_ref().unwrap_or(&Vectors::default());
-            let anchor = object.anchor.as_ref().unwrap_or(&"".to_string());
-            let mut tex_path = image.clone();
-            tex_path.set_extension("tex");
-            let tex = self.texs.get(tex_path.to_str().unwrap_or_default());
+            let size = &object
+                .size
+                .as_ref()
+                .unwrap_or(&Vectors::default())
+                .parse()
+                .unwrap_or_default();
 
-            if tex.is_none() {
+            let anchor_default = &"None".to_string();
+            let anchor = object.anchor.as_ref().unwrap_or(anchor_default);
+            let model_path = image.clone();
+            let Some(model) = self.jsons.get(model_path.to_str().unwrap_or_default()) else {
                 continue;
-            }
+            };
+            let model = serde_json::from_str::<crate::scene::models::Root>(model);
+            let model = match model {
+                Ok(val) => val,
+                Err(_) => continue,
+            };
 
-            let tex = tex.unwrap();
+            let mut tex_path = Path::new(&model.material).to_path_buf();
+            tex_path.set_extension("tex");
 
-            self.bind_groups.push(create_tex_bind_group(
+            let Some(tex) = self.texs.get(tex_path.to_str().unwrap_or_default()) else {
+                continue;
+            };
+
+            let bind_group = create_tex_bind_group(
                 &self.device,
                 &self.queue,
                 &self.bind_group_layout,
@@ -394,29 +439,37 @@ impl WgpuApp {
                 &self.root,
                 &self.projection_buffer,
                 &self.window.inner_size().cast::<f32>(),
-            ));
+            );
 
-            // Self::draw_rect(self, pos, w, h, z);
+            draw_queue.push(Draw {
+                origin: [origin[0] as f32, origin[1] as f32, origin[2] as f32 - 1.0],
+                scale: [scale[0] as f32, scale[1] as f32, scale[2] as f32],
+                size: [size[0] as f32, size[1] as f32],
+                anchor: anchor.to_owned(),
+                bind_group: bind_group,
+                tex: tex.to_owned(),
+            });
         }
 
-        let tex = self.texs.get("materials/画师-雨野拓展.tex").unwrap();
+        let mut index = 0;
 
-        self.bind_groups.push(create_tex_bind_group(
-            &self.device,
-            &self.queue,
-            &self.bind_group_layout,
-            tex,
-            &self.root,
-            &self.projection_buffer,
-            &self.window.inner_size().cast::<f32>(),
-        ));
-        Self::draw_rect(
-            self,
-            [0.0, 0.0],
-            tex.dimension[0] as f32,
-            tex.dimension[1] as f32,
-            -1.0,
-        );
+        for draw in draw_queue {
+            self.draw_rect(
+                [
+                    draw.origin[0] - draw.size[0] / 2.0,
+                    draw.origin[1] - draw.size[1] / 2.0,
+                ],
+                draw.size[0],
+                draw.size[1],
+                draw.origin[2],
+            );
+            self.render_objects.push(RenderObject {
+                bind_group: draw.bind_group.clone(),
+                start_index: index,
+                end_index: index + 6,
+            });
+            index += 6;
+        }
     }
 }
 

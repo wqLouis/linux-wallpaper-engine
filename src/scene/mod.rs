@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod models;
 pub mod render;
 pub mod render_tex;
 

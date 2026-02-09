@@ -69,7 +69,8 @@ impl Projection {
         let left = (self.width - view_width) / 2.0;
         let right = (self.width + view_width) / 2.0;
 
-        let projection = Mat4::orthographic_rh(left, right, bottom, top, self.nearz, self.farz);
+        let projection =
+            Mat4::orthographic_rh(0.0, self.width, self.height, 0.0, self.nearz, self.farz);
 
         CameraUniform {
             projection: (projection * view).to_cols_array_2d(),
