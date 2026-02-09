@@ -1,8 +1,9 @@
 use bytemuck::bytes_of;
 use depkg::pkg_parser::tex_parser::Tex;
 use wgpu::*;
+use winit::dpi::PhysicalSize;
 
-use crate::scene::{Camera, Root, camera::CameraUniform};
+use crate::scene::Root;
 
 pub fn create_tex_bind_group(
     device: &Device,
@@ -11,6 +12,7 @@ pub fn create_tex_bind_group(
     tex: &Tex,
     root: &Root,
     projection_buffer: &Buffer,
+    window_size: &PhysicalSize<f32>,
 ) -> BindGroup {
     let diffuse_tex = device.create_texture(&TextureDescriptor {
         size: Extent3d {
@@ -82,7 +84,12 @@ pub fn create_tex_bind_group(
     queue.write_buffer(
         &projection_buffer,
         0,
-        bytes_of(&root.camera.new(&root.general).create_projection_matrix()),
+        bytes_of(
+            &root
+                .camera
+                .new(&root.general)
+                .create_projection_matrix(window_size),
+        ),
     );
 
     bind_group

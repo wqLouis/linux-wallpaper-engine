@@ -143,7 +143,12 @@ impl WgpuApp {
         queue.write_buffer(
             &projection_buffer,
             0,
-            bytes_of(&root.camera.new(&general).create_projection_matrix()),
+            bytes_of(
+                &root
+                    .camera
+                    .new(&general)
+                    .create_projection_matrix(&window.inner_size().cast::<f32>()),
+            ),
         );
 
         let vertex_buffer_layout = VertexBufferLayout {
@@ -364,6 +369,7 @@ impl WgpuApp {
             self.texs.get("materials/画师-雨野拓展.tex").unwrap(),
             &self.root,
             &self.projection_buffer,
+            &self.window.inner_size().cast::<f32>(),
         ));
         Self::draw_rect(self, [0.0, 0.0], 1920.0, 1080.0, -1.0);
     }
@@ -410,15 +416,10 @@ impl ApplicationHandler for WgpuAppHandler {
 
             WindowEvent::Resized(physical_size) => {
                 let app = app.as_mut().unwrap();
-                app.size = PhysicalSize {
-                    width: (physical_size.width as f32
-                        * self.root.camera.new(&self.root.general).aspect)
-                        .round() as u32,
-                    height: physical_size.height,
-                };
+                app.size = physical_size;
 
-                app.config.width = 1920;
-                app.config.height = 1080;
+                app.config.width = physical_size.width;
+                app.config.height = physical_size.height;
 
                 app.surface.configure(&app.device, &app.config);
 
