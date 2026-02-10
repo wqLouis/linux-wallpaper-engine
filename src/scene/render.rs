@@ -3,6 +3,7 @@ use std::{
     num::NonZeroU32,
     path::Path,
     sync::{Arc, Mutex},
+    time,
 };
 
 use bytemuck::bytes_of;
@@ -37,6 +38,8 @@ struct WgpuApp {
     projection_buffer: Buffer,
     bind_group_layout: BindGroupLayout,
     projection_bind_group_layout: BindGroupLayout,
+    bind_group: Option<BindGroup>,
+    projection_bind_group: Option<BindGroup>,
     index_len: u32,
     vertex_len: u32,
 
@@ -256,7 +259,7 @@ impl WgpuApp {
             cache: None,
         });
 
-        Self {
+        let mut wgpu_app = Self {
             window,
             surface,
             device,
@@ -277,7 +280,11 @@ impl WgpuApp {
             projection_buffer,
             projection_bind_group_layout,
             render_tex: Vec::with_capacity(texs_len),
-        }
+            bind_group: None,
+            projection_bind_group: None,
+        };
+        wgpu_app.load();
+        wgpu_app
     }
 
     fn create_buffer(device: &Device) -> (Buffer, Buffer, Buffer) {
@@ -348,9 +355,7 @@ impl WgpuApp {
     }
 
     fn render(&mut self) -> Result<(), SurfaceError> {
-        // clear the buffer
-        self.index_len = 0;
-        self.vertex_len = 0;
+        let time_now = time::Instant::now();
 
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -384,39 +389,27 @@ impl WgpuApp {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            self.render_main();
             if self.index_len < 1 {
                 return Ok(());
             }
 
-            let (bind_group, projection_bind_group) = create_tex_bind_group(
-                &self.device,
-                &self.queue,
-                &self.bind_group_layout,
-                &self.projection_bind_group_layout,
-                &self.render_tex,
-                &self.root,
-                &self.projection_buffer,
-                &self.window.inner_size().cast::<f32>(),
-            );
-
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.set_bind_group(0, &bind_group, &[]);
-            render_pass.set_bind_group(1, &projection_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_bind_group(1, &self.projection_bind_group, &[]);
             render_pass.draw_indexed(0..self.index_len, 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));
         output.present();
 
+        println!("fps : {:?}", 1.0 / time_now.elapsed().as_secs_f64());
+
         Ok(())
     }
 
-    fn render_main(&mut self) {
+    fn load(&mut self) {
         // Put all the render stuff here
-        self.render_tex.clear();
-
         struct Draw {
             origin: [f32; 3],
             scale: [f32; 3],
@@ -484,6 +477,23 @@ impl WgpuApp {
             tex_index += 1;
         }
 
+        let (bind_group, projection_bind_group) = create_tex_bind_group(
+            &self.device,
+            &self.queue,
+            &self.bind_group_layout,
+            &self.projection_bind_group_layout,
+            &draw_queue
+                .iter()
+                .map(|draw| draw.tex.clone())
+                .collect::<Vec<Tex>>(),
+            &self.root,
+            &self.projection_buffer,
+            &self.window.inner_size().cast::<f32>(),
+        );
+
+        self.bind_group = Some(bind_group);
+        self.projection_bind_group = Some(projection_bind_group);
+
         for draw in draw_queue {
             self.draw_rect(
                 [
@@ -508,7 +518,7 @@ impl ApplicationHandler for WgpuAppHandler {
 
         let window_attributes = Window::default_attributes().with_title("Linux wallpaper engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        let mut wgpu_app = block_on(WgpuApp::new(
+        let wgpu_app = block_on(WgpuApp::new(
             window,
             self.root.general.to_owned(),
             self.root.objects.to_owned(),
@@ -562,7 +572,7 @@ pub fn start(
     texs: HashMap<String, Tex>,
 ) {
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(event_loop::ControlFlow::Wait);
+    event_loop.set_control_flow(event_loop::ControlFlow::Poll);
 
     let mut app = WgpuAppHandler {
         root: scene,
