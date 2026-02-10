@@ -9,25 +9,36 @@ pub fn create_tex_bind_group(
     device: &Device,
     queue: &Queue,
     bind_group_layout: &BindGroupLayout,
-    tex: &Tex,
+    projection_bind_group_layout: &BindGroupLayout,
+    texs: &Vec<Tex>,
     root: &Root,
     projection_buffer: &Buffer,
     window_size: &PhysicalSize<f32>,
-) -> BindGroup {
-    let diffuse_tex = device.create_texture(&TextureDescriptor {
-        size: Extent3d {
-            width: tex.dimension[0],
-            height: tex.dimension[1],
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8UnormSrgb,
-        usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
-        label: None,
-        view_formats: &[],
-    });
+) -> (BindGroup, BindGroup) {
+    let diffuse_texs: Vec<Texture> = texs
+        .iter()
+        .map(|tex| {
+            device.create_texture(&TextureDescriptor {
+                size: Extent3d {
+                    width: tex.dimension[0],
+                    height: tex.dimension[1],
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Rgba8UnormSrgb,
+                usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+                label: None,
+                view_formats: &[],
+            })
+        })
+        .collect();
+
+    let diffuse_tex_views = diffuse_texs
+        .iter()
+        .map(|tex| tex.create_view(&TextureViewDescriptor::default()))
+        .collect::<Vec<TextureView>>();
 
     let diffuse_sampler = device.create_sampler(&SamplerDescriptor {
         label: None,
@@ -40,14 +51,18 @@ pub fn create_tex_bind_group(
         ..Default::default()
     });
 
-    let bind_group = device.create_bind_group(&BindGroupDescriptor {
+    let tex_bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: None,
         layout: bind_group_layout,
         entries: &[
             BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::TextureView(
-                    &diffuse_tex.create_view(&TextureViewDescriptor::default()),
+                resource: BindingResource::TextureViewArray(
+                    diffuse_tex_views
+                        .iter()
+                        .map(|view| view)
+                        .collect::<Vec<&TextureView>>()
+                        .as_slice(),
                 ),
             },
             BindGroupEntry {
@@ -61,25 +76,36 @@ pub fn create_tex_bind_group(
         ],
     });
 
-    queue.write_texture(
-        TexelCopyTextureInfo {
-            texture: &diffuse_tex,
-            mip_level: 0,
-            origin: Origin3d::ZERO,
-            aspect: TextureAspect::All,
-        },
-        &tex.payload,
-        TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * tex.dimension[0]),
-            rows_per_image: Some(tex.dimension[1]),
-        },
-        Extent3d {
-            width: tex.dimension[0],
-            height: tex.dimension[1],
-            depth_or_array_layers: 1,
-        },
-    );
+    let projection_bind_group = device.create_bind_group(&BindGroupDescriptor {
+        label: None,
+        layout: projection_bind_group_layout,
+        entries: &[BindGroupEntry {
+            binding: 0,
+            resource: projection_buffer.as_entire_binding(),
+        }],
+    });
+
+    for (diffuse_tex, tex) in diffuse_texs.iter().zip(texs) {
+        queue.write_texture(
+            TexelCopyTextureInfo {
+                texture: &diffuse_tex,
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            },
+            &tex.payload,
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * tex.dimension[0]),
+                rows_per_image: Some(tex.dimension[1]),
+            },
+            Extent3d {
+                width: tex.dimension[0],
+                height: tex.dimension[1],
+                depth_or_array_layers: 1,
+            },
+        );
+    }
 
     queue.write_buffer(
         &projection_buffer,
@@ -92,36 +118,5 @@ pub fn create_tex_bind_group(
         ),
     );
 
-    bind_group
-}
-
-pub fn extend_img(bytes: &Vec<u8>, ori_size: [u32; 2], tar_size: [u32; 2]) -> Vec<Vec<u8>> {
-    // Only extend cannot shrink
-
-    let rows = bytes.windows((ori_size[0] * 4) as usize);
-    let mut rows: Vec<Vec<u8>> = rows
-        .map(|row| {
-            let mut row = row.to_vec();
-            row.resize(tar_size[0] as usize, 0);
-            row
-        })
-        .collect();
-    rows.append(&mut vec![
-        vec![0u8; (tar_size[0] * 4) as usize];
-        (tar_size[1] - ori_size[1]) as usize
-    ]);
-    rows
-}
-
-pub fn preprocess_tex(tex: &mut Tex) -> Vec<Vec<u8>> {
-    let closest_power_of_2 = |x: f32| 2u32.pow(x.log2().ceil() as u32);
-    let tar_size = closest_power_of_2(tex.dimension[0] as f32)
-        .max(closest_power_of_2(tex.dimension[1] as f32))
-        .max(512); // with min size 512x512
-
-    return extend_img(
-        &tex.payload,
-        [tex.dimension[0], tex.dimension[1]],
-        [tar_size, tar_size],
-    );
+    (tex_bind_group, projection_bind_group)
 }

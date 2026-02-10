@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    num::NonZeroU32,
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -35,6 +36,7 @@ struct WgpuApp {
     index_buffer: Buffer,
     projection_buffer: Buffer,
     bind_group_layout: BindGroupLayout,
+    projection_bind_group_layout: BindGroupLayout,
     index_len: u32,
     vertex_len: u32,
 
@@ -42,13 +44,7 @@ struct WgpuApp {
     objects: Vec<crate::scene::Object>,
     texs: HashMap<String, Tex>,
     jsons: HashMap<String, String>,
-    render_objects: Vec<RenderObject>,
-}
-
-struct RenderObject {
-    bind_group: BindGroup,
-    start_index: u32,
-    end_index: u32,
+    render_tex: Vec<Tex>,
 }
 
 #[derive(Default)]
@@ -65,6 +61,7 @@ struct WgpuAppHandler {
 struct Vertex {
     position: [f32; 3],
     uv: [f32; 2],
+    tex_index: u32,
 }
 
 const MAX_RECT: u64 = 512;
@@ -80,6 +77,8 @@ impl WgpuApp {
         jsons: HashMap<String, String>,
         root: Root,
     ) -> Self {
+        let texs_len = texs.len();
+
         let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
@@ -99,8 +98,12 @@ impl WgpuApp {
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: None,
-                required_features: Features::empty(),
-                required_limits: Limits::defaults(),
+                required_features: Features::TEXTURE_BINDING_ARRAY
+                    | Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
+                required_limits: Limits {
+                    max_binding_array_elements_per_shader_stage: 512,
+                    ..Default::default()
+                },
                 experimental_features: ExperimentalFeatures::disabled(),
                 memory_hints: MemoryHints::Performance,
                 trace: Trace::Off,
@@ -129,8 +132,7 @@ impl WgpuApp {
 
         surface.configure(&device, &config);
 
-        let (vertex_buffer, index_buffer, projection_buffer, tex_idx_buffer) =
-            Self::create_buffer(&device);
+        let (vertex_buffer, index_buffer, projection_buffer) = Self::create_buffer(&device);
 
         queue.write_buffer(
             &projection_buffer,
@@ -153,9 +155,15 @@ impl WgpuApp {
                     format: VertexFormat::Float32x3,
                 },
                 VertexAttribute {
-                    offset: std::mem::size_of::<[u32; 3]>() as u64,
+                    offset: std::mem::size_of::<[f32; 3]>() as u64,
                     shader_location: 1,
                     format: VertexFormat::Float32x2,
+                },
+                VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
+                        as u64,
+                    shader_location: 2,
+                    format: VertexFormat::Uint32,
                 },
             ],
         };
@@ -171,7 +179,7 @@ impl WgpuApp {
                         view_dimension: TextureViewDimension::D2,
                         multisampled: false,
                     },
-                    count: None,
+                    count: Some(NonZeroU32::new(MAX_RECT as u32).unwrap()),
                 },
                 BindGroupLayoutEntry {
                     binding: 1,
@@ -179,8 +187,14 @@ impl WgpuApp {
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
                 },
-                BindGroupLayoutEntry {
-                    binding: 2,
+            ],
+        });
+
+        let projection_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
                     visibility: ShaderStages::VERTEX,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
@@ -188,19 +202,8 @@ impl WgpuApp {
                         min_binding_size: None,
                     },
                     count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
+                }],
+            });
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Pipeline layout"),
@@ -253,8 +256,6 @@ impl WgpuApp {
             cache: None,
         });
 
-        let texs_len = texs.len();
-
         Self {
             window,
             surface,
@@ -274,11 +275,12 @@ impl WgpuApp {
             texs,
             bind_group_layout,
             projection_buffer,
-            render_objects: Vec::with_capacity(texs_len),
+            projection_bind_group_layout,
+            render_tex: Vec::with_capacity(texs_len),
         }
     }
 
-    fn create_buffer(device: &Device) -> (Buffer, Buffer, Buffer, Buffer) {
+    fn create_buffer(device: &Device) -> (Buffer, Buffer, Buffer) {
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
             size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
@@ -300,38 +302,30 @@ impl WgpuApp {
             mapped_at_creation: false,
         });
 
-        let tex_idx_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: std::mem::size_of::<u32>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        (
-            vertex_buffer,
-            index_buffer,
-            projection_buffer,
-            tex_idx_buffer,
-        )
+        (vertex_buffer, index_buffer, projection_buffer)
     }
 
-    pub fn draw_rect(&mut self, pos: [f32; 2], w: f32, h: f32, z: f32) {
+    pub fn draw_rect(&mut self, pos: [f32; 2], w: f32, h: f32, z: f32, tex_index: u32) {
         let rect = [
             Vertex {
                 position: [pos[0], pos[1], z],
                 uv: [0.0, 0.0],
+                tex_index,
             },
             Vertex {
                 position: [pos[0] + w, pos[1], z],
                 uv: [1.0, 0.0],
+                tex_index,
             },
             Vertex {
                 position: [pos[0], pos[1] + h, z],
                 uv: [0.0, 1.0],
+                tex_index,
             },
             Vertex {
                 position: [pos[0] + w, pos[1] + h, z],
                 uv: [1.0, 1.0],
+                tex_index,
             },
         ];
 
@@ -391,12 +385,25 @@ impl WgpuApp {
 
             render_pass.set_pipeline(&self.render_pipeline);
             self.render_main();
-            if self.index_len > 0 {
-                // if there is something then add to render pass
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+            if self.index_len < 1 {
+                return Ok(());
             }
 
+            let (bind_group, projection_bind_group) = create_tex_bind_group(
+                &self.device,
+                &self.queue,
+                &self.bind_group_layout,
+                &self.projection_bind_group_layout,
+                &self.render_tex,
+                &self.root,
+                &self.projection_buffer,
+                &self.window.inner_size().cast::<f32>(),
+            );
+
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+
+            /*
             for (index, render_object) in self.render_objects.iter().enumerate() {
                 render_pass.set_bind_group(index as u32 % 4, &render_object.bind_group, &[]);
                 render_pass.draw_indexed(
@@ -404,7 +411,7 @@ impl WgpuApp {
                     0,
                     0..1,
                 );
-            }
+            }  */
         }
 
         self.queue.submit(Some(encoder.finish()));
@@ -415,18 +422,17 @@ impl WgpuApp {
 
     fn render_main(&mut self) {
         // Put all the render stuff here
-        self.render_objects.clear();
-
         struct Draw {
             origin: [f32; 3],
             scale: [f32; 3],
             size: [f32; 2],
             anchor: String,
-            bind_group: BindGroup,
+            tex_index: u32,
             tex: Tex,
         }
 
         let mut draw_queue: Vec<Draw> = Vec::with_capacity(self.objects.len());
+        let mut tex_index = 0;
 
         for object in &self.objects {
             if object.image.is_none() {
@@ -469,28 +475,19 @@ impl WgpuApp {
             let Some(tex) = self.texs.get(tex_path.to_str().unwrap_or_default()) else {
                 continue;
             };
-
-            let bind_group = create_tex_bind_group(
-                &self.device,
-                &self.queue,
-                &self.bind_group_layout,
-                tex,
-                &self.root,
-                &self.projection_buffer,
-                &self.window.inner_size().cast::<f32>(),
-            );
+            let tex = tex.to_owned();
 
             draw_queue.push(Draw {
                 origin: [origin[0] as f32, origin[1] as f32, origin[2] as f32 - 1.0],
                 scale: [scale[0] as f32, scale[1] as f32, scale[2] as f32],
                 size: [size[0] as f32, size[1] as f32],
                 anchor: anchor.to_owned(),
-                bind_group: bind_group,
-                tex: tex.to_owned(),
+                tex_index,
+                tex,
             });
-        }
 
-        let mut index = 0;
+            tex_index += 1;
+        }
 
         for draw in draw_queue {
             self.draw_rect(
@@ -501,13 +498,9 @@ impl WgpuApp {
                 draw.size[0],
                 draw.size[1],
                 draw.origin[2],
+                draw.tex_index,
             );
-            self.render_objects.push(RenderObject {
-                bind_group: draw.bind_group.clone(),
-                start_index: index,
-                end_index: index + 6,
-            });
-            index += 6;
+            self.render_tex.push(draw.tex);
         }
     }
 }
