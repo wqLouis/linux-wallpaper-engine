@@ -3,7 +3,7 @@ use depkg::pkg_parser::tex_parser::Tex;
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 
-use crate::scene::{Object, Root};
+use crate::scene::Root;
 
 pub fn create_tex_bind_group(
     device: &Device,
@@ -93,4 +93,35 @@ pub fn create_tex_bind_group(
     );
 
     bind_group
+}
+
+pub fn extend_img(bytes: &Vec<u8>, ori_size: [u32; 2], tar_size: [u32; 2]) -> Vec<Vec<u8>> {
+    // Only extend cannot shrink
+
+    let rows = bytes.windows((ori_size[0] * 4) as usize);
+    let mut rows: Vec<Vec<u8>> = rows
+        .map(|row| {
+            let mut row = row.to_vec();
+            row.resize(tar_size[0] as usize, 0);
+            row
+        })
+        .collect();
+    rows.append(&mut vec![
+        vec![0u8; (tar_size[0] * 4) as usize];
+        (tar_size[1] - ori_size[1]) as usize
+    ]);
+    rows
+}
+
+pub fn preprocess_tex(tex: &mut Tex) -> Vec<Vec<u8>> {
+    let closest_power_of_2 = |x: f32| 2u32.pow(x.log2().ceil() as u32);
+    let tar_size = closest_power_of_2(tex.dimension[0] as f32)
+        .max(closest_power_of_2(tex.dimension[1] as f32))
+        .max(512); // with min size 512x512
+
+    return extend_img(
+        &tex.payload,
+        [tex.dimension[0], tex.dimension[1]],
+        [tar_size, tar_size],
+    );
 }

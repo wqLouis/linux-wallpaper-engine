@@ -7,7 +7,10 @@ use std::{
 use bytemuck::bytes_of;
 use depkg::pkg_parser::tex_parser::Tex;
 use pollster::block_on;
-use wgpu::{wgt::DeviceDescriptor, *};
+use wgpu::{
+    wgt::{BufferDescriptor, DeviceDescriptor},
+    *,
+};
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -64,6 +67,10 @@ struct Vertex {
     uv: [f32; 2],
 }
 
+const MAX_RECT: u64 = 512;
+const MAX_VERTICES: u64 = MAX_RECT * 4;
+const MAX_INDICES: u64 = MAX_RECT * 6;
+
 impl WgpuApp {
     async fn new(
         window: Arc<Window>,
@@ -73,10 +80,6 @@ impl WgpuApp {
         jsons: HashMap<String, String>,
         root: Root,
     ) -> Self {
-        const MAX_RECT: u64 = 512;
-        const MAX_VERTICES: u64 = MAX_RECT * 4;
-        const MAX_INDICES: u64 = MAX_RECT * 6;
-
         let instance = Instance::new(&InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
@@ -126,26 +129,8 @@ impl WgpuApp {
 
         surface.configure(&device, &config);
 
-        let vertex_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let index_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: MAX_INDICES * std::mem::size_of::<u16>() as u64,
-            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let projection_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: std::mem::size_of::<CameraUniform>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let (vertex_buffer, index_buffer, projection_buffer, tex_idx_buffer) =
+            Self::create_buffer(&device);
 
         queue.write_buffer(
             &projection_buffer,
@@ -197,6 +182,16 @@ impl WgpuApp {
                 BindGroupLayoutEntry {
                     binding: 2,
                     visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -281,6 +276,43 @@ impl WgpuApp {
             projection_buffer,
             render_objects: Vec::with_capacity(texs_len),
         }
+    }
+
+    fn create_buffer(device: &Device) -> (Buffer, Buffer, Buffer, Buffer) {
+        let vertex_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: MAX_VERTICES * std::mem::size_of::<Vertex>() as u64,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let index_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: MAX_INDICES * std::mem::size_of::<u16>() as u64,
+            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let projection_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let tex_idx_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<u32>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        (
+            vertex_buffer,
+            index_buffer,
+            projection_buffer,
+            tex_idx_buffer,
+        )
     }
 
     pub fn draw_rect(&mut self, pos: [f32; 2], w: f32, h: f32, z: f32) {
