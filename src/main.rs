@@ -63,5 +63,5 @@ fn main() {
     let mut texs = texs.lock().unwrap();
     let texs = std::mem::take(&mut *texs);
 
-    scene::render::start(scene, jsons, texs);
+    scene::renderer::render::start(scene, jsons, texs);
 }

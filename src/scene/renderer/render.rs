@@ -21,7 +21,9 @@ use winit::{
     window::Window,
 };
 
-use crate::scene::{Root, Vectors, camera::CameraUniform, render_tex::create_tex_bind_group};
+use crate::scene::{
+    Root, Vectors, camera::CameraUniform, renderer::render_tex::create_tex_bind_group,
+};
 
 struct WgpuApp {
     window: Arc<Window>,
