@@ -318,27 +318,27 @@ impl WgpuApp {
         let rect = [
             Vertex {
                 position: [pos[0], pos[1], z],
-                uv: [0.0, 0.0],
-                tex_index,
-            },
-            Vertex {
-                position: [pos[0] + w, pos[1], z],
-                uv: [1.0, 0.0],
-                tex_index,
-            },
-            Vertex {
-                position: [pos[0], pos[1] + h, z],
                 uv: [0.0, 1.0],
                 tex_index,
             },
             Vertex {
-                position: [pos[0] + w, pos[1] + h, z],
+                position: [pos[0] + w, pos[1], z],
                 uv: [1.0, 1.0],
+                tex_index,
+            },
+            Vertex {
+                position: [pos[0], pos[1] + h, z],
+                uv: [0.0, 0.0],
+                tex_index,
+            },
+            Vertex {
+                position: [pos[0] + w, pos[1] + h, z],
+                uv: [1.0, 0.0],
                 tex_index,
             },
         ];
 
-        let indices: [u16; 6] = [0, 2, 3, 3, 1, 0].map(|f| f + self.index_len as u16);
+        let indices: [u16; 6] = [0, 1, 2, 1, 3, 2].map(|f| f + self.index_len as u16);
 
         self.queue.write_buffer(
             &self.vertex_buffer,
@@ -357,8 +357,6 @@ impl WgpuApp {
     }
 
     fn render(&mut self) -> Result<(), SurfaceError> {
-        let time_now = time::Instant::now();
-
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -404,8 +402,6 @@ impl WgpuApp {
 
         self.queue.submit(Some(encoder.finish()));
         output.present();
-
-        println!("fps : {:?}", 1.0 / time_now.elapsed().as_secs_f64());
 
         Ok(())
     }
@@ -499,11 +495,11 @@ impl WgpuApp {
         for draw in draw_queue {
             self.draw_rect(
                 [
-                    draw.origin[0] - draw.size[0] / 2.0,
-                    draw.origin[1] - draw.size[1] / 2.0,
+                    draw.origin[0] - (draw.size[0] / 2.0),
+                    draw.origin[1] - (draw.size[1] / 2.0),
                 ],
-                draw.size[0],
-                draw.size[1],
+                draw.size[0] * draw.scale[0],
+                draw.size[1] * draw.scale[1],
                 draw.origin[2],
                 draw.tex_index,
             );

@@ -165,3 +165,17 @@ pub fn create_tex_bind_group(
 
     (tex_bind_group, projection_bind_group)
 }
+
+fn extend_img(tex: &Tex, target_size: [usize; 2]) -> Vec<u8> {
+    let mut tex = tex
+        .payload
+        .windows(tex.dimension[0] as usize)
+        .map(|row| {
+            let mut row = row.to_vec();
+            row.resize(target_size[0] * 4, 0);
+            row
+        })
+        .collect::<Vec<Vec<u8>>>();
+    tex.append(&mut vec![vec![0; target_size[0]]; target_size[1]]);
+    tex.concat()
+}
