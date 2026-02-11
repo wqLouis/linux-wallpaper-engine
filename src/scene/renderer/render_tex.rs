@@ -15,7 +15,7 @@ pub fn create_tex_bind_group(
     projection_buffer: &Buffer,
     window_size: &PhysicalSize<f32>,
 ) -> (BindGroup, BindGroup) {
-    const TEX_COUNT: usize = 256;
+    const TEX_COUNT: usize = 512;
 
     let diffuse_texs: Vec<Texture> = texs
         .iter()

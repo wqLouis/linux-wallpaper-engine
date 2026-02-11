@@ -69,7 +69,7 @@ struct Vertex {
     tex_index: u32,
 }
 
-const MAX_RECT: u64 = 256;
+const MAX_RECT: u64 = 512;
 const MAX_VERTICES: u64 = MAX_RECT * 4;
 const MAX_INDICES: u64 = MAX_RECT * 6;
 
@@ -151,7 +151,7 @@ impl WgpuApp {
         );
 
         let vertex_buffer_layout = VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as u64,
+            array_stride: std::mem::size_of::<Vertex>() as BufferAddress,
             step_mode: VertexStepMode::Vertex,
             attributes: &[
                 VertexAttribute {
@@ -160,13 +160,13 @@ impl WgpuApp {
                     format: VertexFormat::Float32x3,
                 },
                 VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as u64,
+                    offset: std::mem::size_of::<[f32; 3]>() as BufferAddress,
                     shader_location: 1,
                     format: VertexFormat::Float32x2,
                 },
                 VertexAttribute {
                     offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
-                        as u64,
+                        as BufferAddress,
                     shader_location: 2,
                     format: VertexFormat::Uint32,
                 },
@@ -338,7 +338,7 @@ impl WgpuApp {
             },
         ];
 
-        let indices: [u16; 6] = [0, 1, 2, 1, 3, 2].map(|f| f + self.index_len as u16);
+        let indices: [u16; 6] = [0, 1, 2, 1, 3, 2].map(|f| f + self.vertex_len as u16);
 
         self.queue.write_buffer(
             &self.vertex_buffer,
@@ -570,7 +570,7 @@ pub fn start(
     texs: HashMap<String, Tex>,
 ) {
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(event_loop::ControlFlow::Poll);
+    event_loop.set_control_flow(event_loop::ControlFlow::Wait);
 
     let mut app = WgpuAppHandler {
         root: scene,
