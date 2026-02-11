@@ -397,7 +397,7 @@ impl WgpuApp {
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_bind_group(1, &self.projection_bind_group, &[]);
-            render_pass.draw_indexed(0..self.index_len, 0, 0..1);
+            render_pass.draw_indexed(0..(MAX_INDICES as u32), 0, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));
