@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3};
 use winit::dpi::PhysicalSize;
 
 use crate::scene::General;
