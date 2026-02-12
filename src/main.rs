@@ -11,7 +11,7 @@ use depkg::pkg_parser::{parser::Pkg, tex_parser::Tex};
 use indicatif::ProgressBar;
 
 fn main() {
-    const PATH: &str = "./test/scene.pkg";
+    const PATH: &str = "./test/SAO.pkg";
 
     let pkg = Pkg::new(Path::new(PATH));
     let texs: Arc<Mutex<HashMap<String, Tex>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -60,6 +60,7 @@ fn main() {
         handle.join().unwrap();
         pb.inc(1);
     }
+
     pb.finish_and_clear();
 
     let scene: scene::Root = serde_json::from_str(jsons.get("scene.json").unwrap()).unwrap();
