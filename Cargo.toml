@@ -18,5 +18,4 @@ winit = "0.30.12"
 [profile.release]
 codegen-units = 1
 lto = "thin"
-jemalloc = true
 debug = false

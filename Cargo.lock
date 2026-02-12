@@ -544,9 +544,9 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "depkg"
-version = "1.1.6"
+version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9355d47553413bb074897425f960659800f12a14170a5948d2a5d5a112aa8ceb"
+checksum = "5e5704c74ba0276456d4f8febb09cc955d7dda7ce26e979a4efcd7e37223bf32"
 dependencies = [
  "bcndecode",
  "image",
