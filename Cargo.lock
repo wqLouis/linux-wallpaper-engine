@@ -544,9 +544,9 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "depkg"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81925d12445ad7a3aa6712f2b968a4b49f01e21d2c0864f84a2177eb671dc136"
+checksum = "9355d47553413bb074897425f960659800f12a14170a5948d2a5d5a112aa8ceb"
 dependencies = [
  "bcndecode",
  "image",
@@ -812,9 +812,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.31.0"
+version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74a4d85559e2637d3d839438b5b3d75c31e655276f9544d72475c36b92fabbed"
+checksum = "556f6b2ea90b8d15a74e0e7bb41671c9bdf38cd9f78c284d750b9ce58a2b5be7"
 
 [[package]]
 name = "glow"

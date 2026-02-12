@@ -4,6 +4,7 @@ pub mod renderer;
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +42,7 @@ pub struct General {
     pub cameraparallaxdelay: f64,
     pub cameraparallaxmouseinfluence: f64,
     pub camerapreview: bool,
-    pub camerashake: bool,
+    pub camerashake: Value,
     pub camerashakeamplitude: f64,
     pub camerashakeroughness: f64,
     pub camerashakespeed: f64,
@@ -80,7 +81,7 @@ pub struct Object {
     pub origin: Vectors,
     pub size: Option<Vectors>,
     pub visible: Option<bool>,
-    pub angles: Option<String>,
+    pub angles: Option<Vectors>,
     pub instanceoverride: Option<Instanceoverride>,
     pub particle: Option<String>,
     pub scale: Option<Vectors>,
