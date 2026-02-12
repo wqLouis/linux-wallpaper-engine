@@ -9,6 +9,7 @@ use bytemuck::bytes_of;
 use depkg::pkg_parser::tex_parser::Tex;
 use glam::{Mat2, Vec2};
 use pollster::block_on;
+use serde_json::Value;
 use wgpu::{
     wgt::{BufferDescriptor, DeviceDescriptor},
     *,
@@ -22,7 +23,7 @@ use winit::{
 };
 
 use crate::scene::{
-    Root, Vectors, camera::CameraUniform, renderer::render_tex::create_tex_bind_group,
+    Root, Vectors, camera::CameraUniform, renderer::bindgroup::create_tex_bind_group,
 };
 
 struct WgpuApp {
@@ -439,7 +440,6 @@ impl WgpuApp {
             scale: [f32; 3],
             angles: [f32; 3],
             size: [f32; 2],
-            anchor: String,
             tex_index: u32,
             tex: Tex,
             alpha: f32,
@@ -452,12 +452,18 @@ impl WgpuApp {
             if object.image.is_none() {
                 continue;
             }
-            if object.visible.is_some() && object.visible.unwrap() == false {
-                continue;
-            }
+
+            let visible = match &object.visible {
+                Some(val) => val.value,
+                None => true,
+            };
 
             let image = Path::new(object.image.as_ref().unwrap_or(&"".to_string())).to_path_buf();
-            let origin = &object.origin.parse().unwrap_or_default();
+            let origin = match &object.origin {
+                Some(val) => val.parse().unwrap(),
+                None => continue,
+            };
+
             let scale = &object
                 .scale
                 .as_ref()
@@ -479,8 +485,6 @@ impl WgpuApp {
                 .to_vec();
             let alpha = object.alpha.unwrap_or(1.0) as f32;
 
-            let anchor_default = &"None".to_string();
-            let anchor = object.anchor.as_ref().unwrap_or(anchor_default);
             let model_path = image.clone();
             let Some(model) = self.jsons.get(model_path.to_str().unwrap_or_default()) else {
                 continue;
@@ -503,7 +507,6 @@ impl WgpuApp {
                 origin: [origin[0] as f32, origin[1] as f32, origin[2] as f32 - 1.0],
                 scale: [scale[0] as f32, scale[1] as f32, scale[2] as f32],
                 size: [size[0] as f32, size[1] as f32],
-                anchor: anchor.to_owned(),
                 angles: [angles[0] as f32, angles[1] as f32, angles[2] as f32],
                 tex_index,
                 tex,

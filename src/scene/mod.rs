@@ -42,7 +42,7 @@ pub struct General {
     pub cameraparallaxdelay: f64,
     pub cameraparallaxmouseinfluence: f64,
     pub camerapreview: bool,
-    pub camerashake: Value,
+    pub camerashake: Camerashake,
     pub camerashakeamplitude: f64,
     pub camerashakeroughness: f64,
     pub camerashakespeed: f64,
@@ -65,6 +65,13 @@ pub struct General {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Camerashake {
+    pub user: String,
+    pub value: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Orthogonalprojection {
     pub height: i64,
     pub width: i64,
@@ -73,56 +80,36 @@ pub struct Orthogonalprojection {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Object {
-    pub alpha: Option<f64>,
     pub castshadow: Option<bool>,
+    pub clampuvs: Option<bool>,
+    pub disablepropagation: bool,
     pub id: i64,
     pub image: Option<String>,
+    pub locktransforms: Option<bool>,
     pub name: String,
-    pub origin: Vectors,
+    pub origin: Option<Vectors>,
+    pub scale: Option<Vectors>,
     pub size: Option<Vectors>,
-    pub visible: Option<bool>,
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+    pub alpha: Option<f64>,
     pub angles: Option<Vectors>,
     pub instanceoverride: Option<Instanceoverride>,
     pub particle: Option<String>,
-    pub scale: Option<Vectors>,
-    #[serde(default)]
-    pub effects: Vec<Effect>,
+    pub solid: Option<bool>,
+    pub visible: Option<Visible>,
     #[serde(default)]
     pub animationlayers: Vec<Animationlayer>,
     pub attachment: Option<String>,
     pub parent: Option<i64>,
-    pub locktransforms: Option<bool>,
-    pub anchor: Option<String>,
-    pub backgroundbrightness: Option<f64>,
-    pub backgroundcolor: Option<Vectors>,
-    pub blockalign: Option<bool>,
-    pub brightness: Option<f64>,
-    pub color: Option<Vectors>,
-    pub depthtest: Option<String>,
-    pub font: Option<String>,
-    pub horizontalalign: Option<String>,
-    pub limitrows: Option<bool>,
-    pub limituseellipsis: Option<bool>,
-    pub limitwidth: Option<bool>,
-    pub maxrows: Option<i64>,
-    pub maxwidth: Option<f64>,
-    pub opaquebackground: Option<bool>,
-    pub padding: Option<i64>,
-    pub pointsize: Option<f64>,
-    pub text: Option<Text>,
-    pub verticalalign: Option<String>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Instanceoverride {
-    pub alpha: f64,
-    pub count: f64,
-    pub id: i64,
-    pub rate: f64,
-    pub size: Option<f64>,
-    pub speed: Option<f64>,
-    pub lifetime: Option<f64>,
+    pub maxtime: Option<f64>,
+    pub mintime: Option<f64>,
+    pub muteineditor: Option<bool>,
+    pub playbackmode: Option<String>,
+    #[serde(default)]
+    pub sound: Vec<String>,
+    pub startsilent: Option<bool>,
+    pub volume: Option<f64>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -132,44 +119,111 @@ pub struct Effect {
     pub id: i64,
     pub name: String,
     pub passes: Vec<Pass>,
-    pub visible: bool,
+    pub visible: Value,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pass {
-    pub constantshadervalues: Constantshadervalues,
+    pub constantshadervalues: Option<Constantshadervalues>,
     pub id: i64,
+    pub combos: Option<Combos>,
     #[serde(default)]
     pub textures: Vec<Option<String>>,
-    pub combos: Option<Combos>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Constantshadervalues {
-    pub alpha: Option<f64>,
-    pub colorend: Option<Vectors>,
-    pub colorstart: Option<Vectors>,
-    pub distortion: Option<f64>,
-    pub feather: Option<f64>,
-    pub scale: Option<Vectors>, // String or float
-    pub smoothness: Option<f64>,
-    pub speed: Option<f64>,
-    pub threshold: Option<f64>,
-    pub phase: Option<f64>,
-    pub power: Option<f64>,
-    pub ratio: Option<f64>,
-    pub scrolldirection: Option<f64>,
-    pub speeduv: Option<f64>,
-    pub strength: Option<f64>,
     pub direction: Option<f64>,
     pub exponent: Option<f64>,
-    pub amount: Option<f64>,
-    pub center: Option<f64>,
-    pub point0: Option<Vectors>,
-    pub point1: Option<Vectors>,
+    pub scale: Option<f64>,
+    pub speed: Option<f64>,
+    pub strength: Option<f64>,
+    pub bounds: Option<String>,
+    pub friction: Option<String>,
+    pub alpha: Option<f64>,
+    pub repeat: Option<String>,
+    pub speedx: Option<f64>,
+    pub speedy: Option<i64>,
+    pub color: Option<String>,
+    pub animationspeed: Option<f64>,
+    pub ratio: Option<i64>,
+    pub ripplestrength: Option<f64>,
+    pub scrolldirection: Option<f64>,
+    pub scrollspeed: Option<f64>,
+    pub point0: Option<String>,
+    pub point1: Option<String>,
+    pub point2: Option<String>,
+    pub point3: Option<String>,
+    #[serde(rename = "Aperture")]
+    pub aperture: Option<f64>,
+    #[serde(rename = "Opacity")]
+    pub opacity: Option<Opacity>,
+    #[serde(rename = "Gamma")]
+    pub gamma: Option<f64>,
+    #[serde(rename = "Highlights")]
+    pub highlights: Option<f64>,
+    #[serde(rename = "Tint")]
+    pub tint: Option<String>,
+    #[serde(rename = "opacity")]
+    pub opacity2: Option<f64>,
+    pub radius: Option<i64>,
+    #[serde(rename = "gamma")]
+    pub gamma2: Option<i64>,
+    pub threshold: Option<i64>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Opacity {
+    pub user: String,
+    pub value: i64,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Combos {
+    #[serde(rename = "VERTICAL")]
+    pub vertical: Option<i64>,
+    #[serde(rename = "PRECISE")]
+    pub precise: Option<i64>,
+    #[serde(rename = "BLENDMODE")]
+    pub blendmode: Option<i64>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Instanceoverride {
+    pub count: f64,
+    pub id: i64,
+    pub lifetime: Option<f64>,
+    pub rate: Option<f64>,
     pub size: Option<f64>,
+    pub speed: f64,
+    pub alpha: Option<f64>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Visible {
+    pub user: Value,
+    pub value: bool,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Animationlayer {
+    pub additive: bool,
+    pub animation: i64,
+    pub blend: f64,
+    pub blendin: bool,
+    pub blendout: bool,
+    pub blendtime: f64,
+    pub id: i64,
+    pub name: String,
+    pub rate: f64,
+    pub visible: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -196,50 +250,4 @@ impl Vectors {
                 .collect(),
         }
     }
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Combos {
-    #[serde(rename = "ENABLEMASK")]
-    pub enablemask: i64,
-    #[serde(rename = "VERTICAL")]
-    pub vertical: i64,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Animationlayer {
-    pub additive: bool,
-    pub animation: i64,
-    pub blend: f64,
-    pub blendin: bool,
-    pub blendout: bool,
-    pub blendtime: f64,
-    pub id: i64,
-    pub name: String,
-    pub rate: f64,
-    pub visible: bool,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Text {
-    pub script: String,
-    pub scriptproperties: Scriptproperties,
-    pub value: String,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Scriptproperties {
-    pub add_delimiter: Option<String>,
-    pub align_vertical: Option<bool>,
-    pub day_format: Option<String>,
-    pub month_format: Option<String>,
-    pub show_day: Option<bool>,
-    pub use_delimiter: Option<bool>,
-    pub delimiter: Option<String>,
-    pub show_seconds: Option<bool>,
-    pub use24h_format: Option<bool>,
 }
