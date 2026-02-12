@@ -3,11 +3,11 @@ use std::{
     num::NonZeroU32,
     path::Path,
     sync::{Arc, Mutex},
-    time,
 };
 
 use bytemuck::bytes_of;
 use depkg::pkg_parser::tex_parser::Tex;
+use glam::{Mat2, Vec2};
 use pollster::block_on;
 use wgpu::{
     wgt::{BufferDescriptor, DeviceDescriptor},
@@ -32,7 +32,6 @@ struct WgpuApp {
     queue: Queue,
     config: SurfaceConfiguration,
     size: PhysicalSize<u32>,
-    size_changed: bool,
 
     render_pipeline: RenderPipeline,
     vertex_buffer: Buffer,
@@ -67,6 +66,7 @@ struct Vertex {
     position: [f32; 3],
     uv: [f32; 2],
     tex_index: u32,
+    alpha: f32,
 }
 
 const MAX_RECT: u64 = 512;
@@ -110,7 +110,7 @@ impl WgpuApp {
                     ..Default::default()
                 },
                 experimental_features: ExperimentalFeatures::disabled(),
-                memory_hints: MemoryHints::Performance,
+                memory_hints: MemoryHints::MemoryUsage,
                 trace: Trace::Off,
             })
             .await
@@ -165,10 +165,14 @@ impl WgpuApp {
                     format: VertexFormat::Float32x2,
                 },
                 VertexAttribute {
-                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
-                        as BufferAddress,
+                    offset: std::mem::size_of::<[f32; 5]>() as BufferAddress,
                     shader_location: 2,
                     format: VertexFormat::Uint32,
+                },
+                VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 6]>() as BufferAddress,
+                    shader_location: 3,
+                    format: VertexFormat::Float32,
                 },
             ],
         };
@@ -268,7 +272,6 @@ impl WgpuApp {
             queue,
             config,
             size,
-            size_changed: false,
             render_pipeline,
             index_len: 0,
             vertex_len: 0,
@@ -314,31 +317,54 @@ impl WgpuApp {
         (vertex_buffer, index_buffer, projection_buffer)
     }
 
-    pub fn draw_rect(&mut self, pos: [f32; 2], w: f32, h: f32, z: f32, tex_index: u32) {
+    fn draw_rect(
+        &mut self,
+        pos: [f32; 2],
+        w: f32,
+        h: f32,
+        z: f32,
+        tex_index: u32,
+        rad: f32,
+        alpha: f32,
+    ) {
+        let rotation_mat = Mat2::from_angle(rad);
+        let rotated = vec![
+            Vec2::new(-w / 2.0, h / 2.0),
+            Vec2::new(w / 2.0, h / 2.0),
+            Vec2::new(w / 2.0, -h / 2.0),
+            Vec2::new(-w / 2.0, -h / 2.0),
+        ]
+        .iter()
+        .map(|vertex| (rotation_mat * vertex) + Vec2::new(pos[0] + w / 2.0, pos[1] + h / 2.0))
+        .collect::<Vec<Vec2>>();
         let rect = [
             Vertex {
-                position: [pos[0], pos[1], z],
-                uv: [0.0, 1.0],
-                tex_index,
-            },
-            Vertex {
-                position: [pos[0] + w, pos[1], z],
-                uv: [1.0, 1.0],
-                tex_index,
-            },
-            Vertex {
-                position: [pos[0], pos[1] + h, z],
+                position: [rotated[0].x, rotated[0].y, z],
                 uv: [0.0, 0.0],
                 tex_index,
+                alpha,
             },
             Vertex {
-                position: [pos[0] + w, pos[1] + h, z],
+                position: [rotated[1].x, rotated[1].y, z],
                 uv: [1.0, 0.0],
                 tex_index,
+                alpha,
+            },
+            Vertex {
+                position: [rotated[2].x, rotated[2].y, z],
+                uv: [1.0, 1.0],
+                tex_index,
+                alpha,
+            },
+            Vertex {
+                position: [rotated[3].x, rotated[3].y, z],
+                uv: [0.0, 1.0],
+                tex_index,
+                alpha,
             },
         ];
 
-        let indices: [u16; 6] = [0, 1, 2, 1, 3, 2].map(|f| f + self.vertex_len as u16);
+        let indices: [u16; 6] = [0, 2, 1, 0, 3, 2].map(|f| f + self.vertex_len as u16);
 
         self.queue.write_buffer(
             &self.vertex_buffer,
@@ -411,10 +437,12 @@ impl WgpuApp {
         struct Draw {
             origin: [f32; 3],
             scale: [f32; 3],
+            angles: [f32; 3],
             size: [f32; 2],
             anchor: String,
             tex_index: u32,
             tex: Tex,
+            alpha: f32,
         }
 
         let mut draw_queue: Vec<Draw> = Vec::with_capacity(self.objects.len());
@@ -442,6 +470,14 @@ impl WgpuApp {
                 .unwrap_or(&Vectors::default())
                 .parse()
                 .unwrap_or_default();
+            let angles = &object
+                .angles
+                .as_ref()
+                .unwrap_or(&Vectors::Vectors("0.0 0.0 0.0".to_string()))
+                .parse()
+                .unwrap_or_default()
+                .to_vec();
+            let alpha = object.alpha.unwrap_or(1.0) as f32;
 
             let anchor_default = &"None".to_string();
             let anchor = object.anchor.as_ref().unwrap_or(anchor_default);
@@ -468,8 +504,10 @@ impl WgpuApp {
                 scale: [scale[0] as f32, scale[1] as f32, scale[2] as f32],
                 size: [size[0] as f32, size[1] as f32],
                 anchor: anchor.to_owned(),
+                angles: [angles[0] as f32, angles[1] as f32, angles[2] as f32],
                 tex_index,
                 tex,
+                alpha,
             });
 
             tex_index += 1;
@@ -502,6 +540,8 @@ impl WgpuApp {
                 draw.size[1] * draw.scale[1],
                 draw.origin[2],
                 draw.tex_index,
+                draw.angles[2],
+                draw.alpha,
             );
             self.render_tex.push(draw.tex);
         }

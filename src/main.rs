@@ -32,7 +32,11 @@ fn main() {
                 let tex_handle = thread::spawn(move || {
                     let mut tex = Tex::new(&payload).unwrap();
                     let mut texs = texs_ptr.lock().unwrap();
-                    tex.parse_to_rgba().unwrap();
+                    let parsed = tex.parse_to_rgba();
+                    match parsed {
+                        Some(_) => {}
+                        None => return,
+                    }
 
                     texs.insert(path, tex);
                 });
