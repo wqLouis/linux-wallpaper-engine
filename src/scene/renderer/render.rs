@@ -458,6 +458,10 @@ impl WgpuApp {
                 None => true,
             };
 
+            if !visible {
+                continue;
+            }
+
             let image = Path::new(object.image.as_ref().unwrap_or(&"".to_string())).to_path_buf();
             let origin = match &object.origin {
                 Some(val) => val.parse().unwrap(),
@@ -502,6 +506,33 @@ impl WgpuApp {
                 continue;
             };
             let tex = tex.to_owned();
+
+            if tex.payload.len() != (tex.dimension[0] * tex.dimension[0] * 4) as usize {
+                println!("Broken texture: {:?}", tex_path);
+                println!(
+                    "format: {:?}    dimensions: {:?}",
+                    tex.extension, tex.dimension
+                );
+                println!(
+                    "size: {:?}    actual_size: {:?}",
+                    (tex.dimension[0] * tex.dimension[0] * 4),
+                    tex.payload.len()
+                );
+                println!();
+                continue;
+            }
+
+            println!("Loaded texture: {:?}", tex_path);
+            println!(
+                "format: {:?}    dimensions: {:?}",
+                tex.extension, tex.dimension
+            );
+            println!(
+                "size: {:?}    actual_size: {:?}",
+                (tex.dimension[0] * tex.dimension[0] * 4),
+                tex.payload.len()
+            );
+            println!();
 
             draw_queue.push(Draw {
                 origin: [origin[0] as f32, origin[1] as f32, origin[2] as f32 - 1.0],
