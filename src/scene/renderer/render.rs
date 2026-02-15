@@ -445,8 +445,7 @@ impl WgpuApp {
         let mut tex_index = 0;
 
         for object in &self.objects {
-            let Some(object_para) =
-                super::load_object::load_from_json(object, &self.jsons, &self.texs)
+            let Some(object_para) = super::object::load_from_json(object, &self.jsons, &self.texs)
             else {
                 continue;
             };

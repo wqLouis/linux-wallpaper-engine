@@ -1,3 +1,3 @@
 mod bindgroup;
-mod load_object;
+mod object;
 pub mod render;
