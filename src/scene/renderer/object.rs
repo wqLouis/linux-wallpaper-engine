@@ -5,7 +5,12 @@ use serde_json::{Value, json};
 
 use crate::scene::{Object, Vectors};
 
-pub struct ObjectParameters {
+pub enum ObjectType {
+    Texture(TextureParameters),
+    Audio(AudioParameters),
+}
+
+pub struct TextureParameters {
     pub origin: Vec<f32>,
     pub angles: Vec<f32>,
     pub scale: Vec<f32>,
@@ -14,11 +19,31 @@ pub struct ObjectParameters {
     pub tex: Arc<Tex>,
 }
 
+pub struct AudioParameters {
+    pub sounds: Vec<String>,
+    pub playback_mode: String,
+    pub volume: f32,
+}
+
 pub fn load_from_json(
     object: &Object,
     jsons: &HashMap<String, String>,
     texs: &HashMap<String, Arc<Tex>>,
-) -> Option<ObjectParameters> {
+) -> Option<ObjectType> {
+    if object.image.is_some() {
+        return Some(ObjectType::Texture(load_texture(object, jsons, texs)?));
+    }
+    if object.sound.len() != 0 {
+        return Some(ObjectType::Audio(load_audio(object)?));
+    }
+    None
+}
+
+fn load_texture(
+    object: &Object,
+    jsons: &HashMap<String, String>,
+    texs: &HashMap<String, Arc<Tex>>,
+) -> Option<TextureParameters> {
     if object.visible.is_some() {
         let visible = object.visible.clone().unwrap();
         if visible.is_boolean() && visible.as_bool().unwrap() == false {
@@ -124,12 +149,42 @@ pub fn load_from_json(
         return None;
     }
 
-    Some(ObjectParameters {
+    Some(TextureParameters {
         origin,
         angles,
         scale,
         size,
         alpha: alpha_val as f32,
         tex: Arc::clone(tex),
+    })
+}
+
+fn load_audio(object: &Object) -> Option<AudioParameters> {
+    let mut vol: f32 = 1.0;
+    let sounds = object.sound.to_vec();
+    let playback_mode = object.playbackmode.to_owned().unwrap_or("loop".to_string());
+
+    if object.volume.is_some() {
+        let vol_val = object.volume.as_ref().unwrap();
+        if vol_val.is_f64() {
+            vol = vol_val.as_f64().unwrap() as f32;
+        }
+        if vol_val.is_object() {
+            let default_vol = json!(1.0);
+            let vol_val = vol_val
+                .as_object()
+                .unwrap()
+                .get("value")
+                .unwrap_or(&default_vol);
+            if vol_val.is_f64() {
+                vol = vol_val.as_f64().unwrap() as f32;
+            }
+        }
+    };
+
+    Some(AudioParameters {
+        sounds,
+        playback_mode,
+        volume: vol,
     })
 }

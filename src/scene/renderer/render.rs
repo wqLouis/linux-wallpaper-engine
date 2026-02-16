@@ -1,6 +1,8 @@
 use std::{
     collections::HashMap,
+    io::Cursor,
     num::NonZeroU32,
+    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -8,6 +10,7 @@ use bytemuck::bytes_of;
 use depkg::pkg_parser::tex_parser::Tex;
 use glam::{Mat2, Vec2};
 use pollster::block_on;
+use rodio::{OutputStream, Source};
 use wgpu::{
     wgt::{BufferDescriptor, DeviceDescriptor},
     *,
@@ -20,7 +23,11 @@ use winit::{
     window::Window,
 };
 
-use crate::scene::{Root, camera::CameraUniform, renderer::bindgroup::create_tex_bind_group};
+use crate::scene::{
+    Root,
+    camera::CameraUniform,
+    renderer::{bindgroup::create_tex_bind_group, object::ObjectType},
+};
 
 struct WgpuApp {
     window: Arc<Window>,
@@ -29,15 +36,18 @@ struct WgpuApp {
     queue: Queue,
     config: SurfaceConfiguration,
     size: PhysicalSize<u32>,
-
     render_pipeline: RenderPipeline,
+
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     projection_buffer: Buffer,
+
     bind_group_layout: BindGroupLayout,
     projection_bind_group_layout: BindGroupLayout,
+
     bind_group: Option<BindGroup>,
     projection_bind_group: Option<BindGroup>,
+
     index_len: u32,
     vertex_len: u32,
 
@@ -45,7 +55,10 @@ struct WgpuApp {
     objects: Vec<crate::scene::Object>,
     texs: Arc<HashMap<String, Arc<Tex>>>,
     jsons: Arc<HashMap<String, String>>,
+    others: Arc<HashMap<String, Arc<Vec<u8>>>>,
     render_tex: Vec<Arc<Tex>>,
+
+    audio_stream: OutputStream,
 }
 
 #[derive(Default)]
@@ -55,6 +68,7 @@ struct WgpuAppHandler {
     root: crate::scene::Root,
     jsons: Arc<HashMap<String, String>>,
     texs: Arc<HashMap<String, Arc<Tex>>>,
+    others: Arc<HashMap<String, Arc<Vec<u8>>>>,
 }
 
 #[repr(C)]
@@ -71,12 +85,13 @@ const MAX_VERTICES: u64 = MAX_RECT * 4;
 const MAX_INDICES: u64 = MAX_RECT * 6;
 
 impl WgpuApp {
-    async fn new<'tex>(
+    async fn new(
         window: Arc<Window>,
         general: crate::scene::General,
         objects: Vec<crate::scene::Object>,
         texs: Arc<HashMap<String, Arc<Tex>>>,
         jsons: Arc<HashMap<String, String>>,
+        others: Arc<HashMap<String, Arc<Vec<u8>>>>,
         root: Root,
     ) -> Self {
         let texs_len = texs.len();
@@ -262,6 +277,8 @@ impl WgpuApp {
             cache: None,
         });
 
+        let audio_stream = rodio::OutputStreamBuilder::open_default_stream().unwrap();
+
         let mut wgpu_app = Self {
             window,
             surface,
@@ -284,6 +301,8 @@ impl WgpuApp {
             render_tex: Vec::with_capacity(texs_len),
             bind_group: None,
             projection_bind_group: None,
+            audio_stream,
+            others,
         };
         wgpu_app.load();
         wgpu_app
@@ -444,36 +463,83 @@ impl WgpuApp {
         let mut draw_queue: Vec<Draw> = Vec::with_capacity(self.objects.len());
         let mut tex_index = 0;
 
+        let audio_stream = &self.audio_stream;
+        let audio_mixer = audio_stream.mixer();
+        let audio_sink = rodio::Sink::connect_new(audio_mixer);
+
         for object in &self.objects {
             let Some(object_para) = super::object::load_from_json(object, &self.jsons, &self.texs)
             else {
                 continue;
             };
+            match object_para {
+                ObjectType::Texture(object_para) => {
+                    draw_queue.push(Draw {
+                        origin: [
+                            object_para.origin[0],
+                            object_para.origin[1],
+                            object_para.origin[2] - 1.0,
+                        ],
+                        scale: [
+                            object_para.scale[0],
+                            object_para.scale[1],
+                            object_para.scale[2],
+                        ],
+                        size: [object_para.size[0], object_para.size[1]],
+                        angles: [
+                            object_para.angles[0],
+                            object_para.angles[1],
+                            object_para.angles[2],
+                        ],
+                        tex_index,
+                        tex: object_para.tex,
+                        alpha: object_para.alpha,
+                    });
 
-            draw_queue.push(Draw {
-                origin: [
-                    object_para.origin[0],
-                    object_para.origin[1],
-                    object_para.origin[2] - 1.0,
-                ],
-                scale: [
-                    object_para.scale[0],
-                    object_para.scale[1],
-                    object_para.scale[2],
-                ],
-                size: [object_para.size[0], object_para.size[1]],
-                angles: [
-                    object_para.angles[0],
-                    object_para.angles[1],
-                    object_para.angles[2],
-                ],
-                tex_index,
-                tex: object_para.tex,
-                alpha: object_para.alpha,
-            });
+                    tex_index += 1;
+                }
+                ObjectType::Audio(object_para) => {
+                    for sound in object_para.sounds {
+                        let sound_type = Path::new(&sound).to_path_buf();
+                        let sound_type = sound_type
+                            .extension()
+                            .unwrap_or_default()
+                            .to_str()
+                            .unwrap_or_default();
 
-            tex_index += 1;
+                        let Some(file_arc) = self.others.get(&sound) else {
+                            continue;
+                        };
+
+                        let file = file_arc.as_ref().clone();
+                        let cursor = Cursor::new(file);
+                        let Some(source) = rodio::decoder::Decoder::builder()
+                            .with_data(cursor)
+                            .with_hint(sound_type)
+                            .build()
+                            .ok()
+                        else {
+                            continue;
+                        };
+
+                        match object_para.playback_mode.as_str() {
+                            "loop" => {
+                                audio_mixer.add(source.repeat_infinite());
+                            }
+                            _ => {
+                                audio_mixer.add(source);
+                            }
+                        };
+                    }
+                }
+            }
         }
+
+        std::thread::spawn(move || {
+            audio_sink.play();
+            audio_sink.set_volume(1.0);
+            audio_sink.sleep_until_end();
+        });
 
         let (bind_group, projection_bind_group) = create_tex_bind_group(
             &self.device,
@@ -525,6 +591,7 @@ impl ApplicationHandler for WgpuAppHandler {
             self.root.objects.to_owned(),
             Arc::clone(&self.texs),
             Arc::clone(&self.jsons),
+            Arc::clone(&self.others),
             self.root.to_owned(),
         ));
         self.app.lock().unwrap().replace(wgpu_app);
@@ -571,16 +638,20 @@ pub fn start(
     scene: crate::scene::Root,
     jsons: HashMap<String, String>,
     texs: HashMap<String, Tex>,
+    others: HashMap<String, Vec<u8>>,
 ) {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(event_loop::ControlFlow::Wait);
     let jsons = Arc::new(jsons);
     let texs: HashMap<String, Arc<Tex>> = texs.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+    let others: Arc<HashMap<String, Arc<Vec<u8>>>> =
+        Arc::new(others.into_iter().map(|(k, v)| (k, Arc::new(v))).collect());
 
     let mut app = WgpuAppHandler {
         root: scene,
         jsons: jsons,
         texs: Arc::new(texs),
+        others,
         ..Default::default()
     };
 
