@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     io::Cursor,
     num::NonZeroU32,
     path::Path,

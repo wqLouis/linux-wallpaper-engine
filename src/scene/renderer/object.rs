@@ -65,12 +65,12 @@ fn load_texture(
                 .get("value")
                 .unwrap_or(&Value::Bool(true))
                 .is_boolean()
-                | visible
+                && visible
                     .get("value")
                     .unwrap_or(&Value::Bool(true))
                     .as_bool()
                     .unwrap_or(true)
-                == false
+                    == false
             {
                 return None;
             }
@@ -236,6 +236,9 @@ fn load_texture(
         println!();
         return None;
     }
+
+    println!("Texture loaded: {:?}", tex_path);
+
     Some(TextureParameters {
         origin,
         angles,

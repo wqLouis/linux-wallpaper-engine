@@ -1,8 +1,8 @@
 [package]
 name = "linux-wallpaper-engine"
 version = "0.1.0"
-description = "Yet another linux wallpaper engine"
 edition = "2024"
+description = "Yet another linux wallpaper engine"
 
 [dependencies]
 bytemuck = "1.25.0"
@@ -11,13 +11,16 @@ depkg = "1.1.1"
 glam = "0.31.0"
 indicatif = "0.18.3"
 pollster = "0.4.0"
-rodio = "0.21.1"
-serde = {version = "1.0.228", features = ["derive"]}
-serde_json = {version = "1.0.149"}
+rodio = { version = "0.21.1", default-features = false, features = [
+  "lewton",
+  "playback"
+] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
 wgpu = "28.0.0"
 winit = "0.30.12"
 
 [profile.release]
-codegen-units = 1
-lto = "thin"
 debug = false
+lto = "thin"
+codegen-units = 1
