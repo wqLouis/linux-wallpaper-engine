@@ -22,8 +22,7 @@ fn vs_main(@location(0) pos: vec3f, @location(1) uv: vec2f, @location(2) tex_idx
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4f {
     var color = textureSample(tex[input.tex_idx], tex_sampler, input.uv);
-    if color.a > input.alpha {
-        color.a = input.alpha;
-    }
+    color.a *= input.alpha;
+
     return color;
 }

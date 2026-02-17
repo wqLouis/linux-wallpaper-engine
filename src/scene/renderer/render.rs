@@ -52,7 +52,7 @@ struct WgpuApp {
     vertex_len: u32,
 
     root: crate::scene::Root,
-    objects: BTreeMap<i64, crate::scene::Object>,
+    objects: Vec<crate::scene::Object>,
     texs: Arc<BTreeMap<String, Arc<Tex>>>,
     jsons: Arc<BTreeMap<String, String>>,
     others: Arc<BTreeMap<String, Arc<Vec<u8>>>>,
@@ -88,7 +88,7 @@ impl WgpuApp {
     async fn new(
         window: Arc<Window>,
         general: crate::scene::General,
-        objects: BTreeMap<i64, crate::scene::Object>,
+        objects: Vec<crate::scene::Object>,
         texs: Arc<BTreeMap<String, Arc<Tex>>>,
         jsons: Arc<BTreeMap<String, String>>,
         others: Arc<BTreeMap<String, Arc<Vec<u8>>>>,
@@ -466,11 +466,25 @@ impl WgpuApp {
         let audio_stream = &self.audio_stream;
         let audio_mixer = audio_stream.mixer();
         let audio_sink = rodio::Sink::connect_new(audio_mixer);
+        let object_tree = self
+            .objects
+            .iter()
+            .map(|object| (object.id, object.parent))
+            .collect::<BTreeMap<i64, Option<i64>>>();
+        let object_map = self
+            .objects
+            .iter()
+            .map(|object| (object.id, object))
+            .collect::<BTreeMap<i64, &crate::scene::Object>>();
 
-        for (_, object) in &self.objects {
-            let Some(object_para) =
-                super::object::load_from_json(object, &self.jsons, &self.texs, &self.objects)
-            else {
+        for object in &self.objects {
+            let Some(object_para) = super::object::load_from_json(
+                object,
+                &self.jsons,
+                &self.texs,
+                &object_map,
+                &object_tree,
+            ) else {
                 continue;
             };
             match object_para {
@@ -587,18 +601,10 @@ impl ApplicationHandler for WgpuAppHandler {
         let window_attributes = Window::default_attributes().with_title("Linux wallpaper engine");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
-        let object: BTreeMap<i64, crate::scene::Object> = self
-            .root
-            .objects
-            .clone()
-            .into_iter()
-            .map(|object| (object.id.clone(), object))
-            .collect();
-
         let wgpu_app = block_on(WgpuApp::new(
             window,
             self.root.general.to_owned(),
-            object,
+            self.root.objects.to_owned(),
             Arc::clone(&self.texs),
             Arc::clone(&self.jsons),
             Arc::clone(&self.others),

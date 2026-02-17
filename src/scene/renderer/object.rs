@@ -29,11 +29,16 @@ pub fn load_from_json(
     object: &Object,
     jsons: &BTreeMap<String, String>,
     texs: &BTreeMap<String, Arc<Tex>>,
-    objects: &BTreeMap<i64, crate::scene::Object>,
+    objects: &BTreeMap<i64, &crate::scene::Object>,
+    object_tree: &BTreeMap<i64, Option<i64>>,
 ) -> Option<ObjectType> {
     if object.image.is_some() {
         return Some(ObjectType::Texture(load_texture(
-            object, jsons, texs, objects,
+            object,
+            jsons,
+            texs,
+            objects,
+            object_tree,
         )?));
     }
     if object.sound.len() != 0 {
@@ -46,7 +51,8 @@ fn load_texture(
     object: &Object,
     jsons: &BTreeMap<String, String>,
     texs: &BTreeMap<String, Arc<Tex>>,
-    objects: &BTreeMap<i64, crate::scene::Object>,
+    objects: &BTreeMap<i64, &crate::scene::Object>,
+    object_tree: &BTreeMap<i64, Option<i64>>,
 ) -> Option<TextureParameters> {
     if object.visible.is_some() {
         let visible = object.visible.clone().unwrap();
@@ -71,7 +77,7 @@ fn load_texture(
         }
     }
 
-    let origin = object
+    let mut origin = object
         .origin
         .clone()
         .unwrap_or(Vectors::Vectors("0.0 0.0 0.0".to_string()))
@@ -80,7 +86,7 @@ fn load_texture(
         .iter()
         .map(|val| val.to_owned() as f32)
         .collect::<Vec<f32>>();
-    let angles = object
+    let mut angles = object
         .angles
         .clone()
         .unwrap_or(Vectors::Vectors("0.0 0.0 0.0".to_string()))
@@ -89,7 +95,7 @@ fn load_texture(
         .iter()
         .map(|val| val.to_owned() as f32)
         .collect::<Vec<f32>>();
-    let scale = object
+    let mut scale = object
         .scale
         .clone()
         .unwrap_or(Vectors::Vectors("1.0 1.0 1.0".to_string()))
@@ -125,6 +131,84 @@ fn load_texture(
         if alpha.is_f64() {
             alpha_val = alpha.as_f64().unwrap_or(1.0);
         }
+    }
+
+    let mut object_id = object.id;
+    loop {
+        let Some(Some(parent_id)) = object_tree.get(&object_id) else {
+            break;
+        };
+        let Some(parent) = objects.get(parent_id) else {
+            break;
+        };
+
+        if parent.visible.is_some() {
+            let visible = parent.visible.clone().unwrap();
+            if visible.is_boolean() && visible.as_bool().unwrap() == false {
+                return None;
+            }
+            if visible.is_object() {
+                let visible = visible.as_object().unwrap();
+                if visible
+                    .get("value")
+                    .unwrap_or(&Value::Bool(true))
+                    .is_boolean()
+                    | visible
+                        .get("value")
+                        .unwrap_or(&Value::Bool(true))
+                        .as_bool()
+                        .unwrap_or(true)
+                    == false
+                {
+                    return None;
+                }
+            }
+        }
+
+        let parent_origin = parent
+            .origin
+            .clone()
+            .unwrap_or(Vectors::Vectors("0.0 0.0 0.0".to_string()))
+            .parse()
+            .unwrap()
+            .iter()
+            .map(|val| val.to_owned() as f32)
+            .collect::<Vec<f32>>();
+        let parent_angles = parent
+            .angles
+            .clone()
+            .unwrap_or(Vectors::Vectors("0.0 0.0 0.0".to_string()))
+            .parse()
+            .unwrap()
+            .iter()
+            .map(|val| val.to_owned() as f32)
+            .collect::<Vec<f32>>();
+        let parent_scale = parent
+            .scale
+            .clone()
+            .unwrap_or(Vectors::Vectors("1.0 1.0 1.0".to_string()))
+            .parse()
+            .unwrap()
+            .iter()
+            .map(|val| val.to_owned() as f32)
+            .collect::<Vec<f32>>();
+
+        origin = origin
+            .iter()
+            .zip(parent_origin)
+            .map(|(child, parent)| child + parent)
+            .collect::<Vec<f32>>();
+        angles = angles
+            .iter()
+            .zip(parent_angles)
+            .map(|(child, parent)| child + parent)
+            .collect::<Vec<f32>>();
+        scale = scale
+            .iter()
+            .zip(parent_scale)
+            .map(|(child, parent)| child * parent)
+            .collect::<Vec<f32>>();
+        object_id = *parent_id;
     }
 
     let Some(model_path) = object.image.clone() else {
