@@ -17,6 +17,8 @@ rodio = { version = "0.21.1", default-features = false, features = [
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149" }
+wayland-protocols = "0.32.10"
+wayland-protocols-wlr = "0.3.10"
 wgpu = "28.0.0"
 winit = "0.30.12"
 

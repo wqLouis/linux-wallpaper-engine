@@ -1340,6 +1340,8 @@ dependencies = [
  "rodio",
  "serde",
  "serde_json",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
  "wgpu",
  "winit",
 ]
