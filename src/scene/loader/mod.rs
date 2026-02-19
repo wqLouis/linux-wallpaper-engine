@@ -1,3 +1,2 @@
-pub mod camera;
-pub mod models;
+pub mod model;
 pub mod scene;

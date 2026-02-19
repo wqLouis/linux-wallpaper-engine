@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -168,7 +168,7 @@ pub struct Effect {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pass {
-    pub constantshadervalues: Option<HashMap<String, Value>>,
+    pub constantshadervalues: Option<BTreeMap<String, Value>>,
     pub id: i64,
     #[serde(default)]
     pub textures: Vec<Option<String>>,
@@ -257,17 +257,11 @@ pub struct Instanceoverride {
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Instance {
-    pub combos: Combos2,
+    pub combos: BTreeMap<String, Value>,
     pub id: i64,
     pub textures: Vec<String>,
     #[serde(default)]
     pub usertextures: Vec<Value>,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Combos2 {
-    pub version: i64,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -312,13 +306,13 @@ impl Default for Vectors {
 }
 
 impl Vectors {
-    pub fn parse(&self) -> Option<Vec<f64>> {
+    pub fn parse(&self) -> Option<Vec<f32>> {
         match self {
-            Vectors::Scaler(s) => Some(vec![s.to_owned()]),
+            Vectors::Scaler(s) => Some(vec![s.to_owned() as f32]),
             Vectors::Vectors(s) => s
                 .split_whitespace()
                 .into_iter()
-                .map(|f| f.parse::<f64>().ok())
+                .map(|f| f.parse::<f32>().ok())
                 .collect(),
         }
     }

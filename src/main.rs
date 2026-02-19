@@ -19,6 +19,10 @@ struct Args {
     path: String,
 }
 
+pub const MAX_TEXTURE: u32 = 512;
+pub const MAX_VERTEX: u32 = MAX_TEXTURE * 4;
+pub const MAX_INDEX: u32 = MAX_TEXTURE * 6;
+
 fn main() {
     let args = Args::parse();
 
@@ -84,6 +88,4 @@ fn main() {
 
     let mut texs = texs.lock().unwrap();
     let texs = std::mem::take(&mut *texs);
-
-    scene::renderer::render::start(scene, jsons, texs, others);
 }

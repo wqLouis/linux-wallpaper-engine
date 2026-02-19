@@ -1,3 +1,4 @@
-mod bindgroup;
-mod object;
+mod buffer;
+mod draw;
+mod projection;
 pub mod render;
