@@ -187,11 +187,6 @@ impl Vertex {
                     shader_location: 2,
                     format: VertexFormat::Uint32,
                 },
-                VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 6]>() as BufferAddress,
-                    shader_location: 3,
-                    format: VertexFormat::Float32,
-                },
             ],
         }
     }

@@ -9,7 +9,7 @@ struct VertexOutput {
 @group(1) @binding(0) var<uniform> projection_matrix: mat4x4f;
 
 @vertex
-fn vs_main(@location(0) pos: vec3f, @location(1) uv: vec2f, @location(2) tex_idx: u32, @location(3) alpha: f32) -> VertexOutput {
+fn vs_main(@location(0) pos: vec3f, @location(1) uv: vec2f, @location(2) tex_idx: u32) -> VertexOutput {
     var output: VertexOutput;
     output.clip_pos = projection_matrix * vec4f(pos, 1);
     output.uv = uv;
