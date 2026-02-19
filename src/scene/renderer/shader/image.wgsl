@@ -2,7 +2,6 @@ struct VertexOutput {
     @builtin(position) clip_pos: vec4f,
     @location(0) uv: vec2f,
     @location(1) tex_idx: u32,
-    @location(2) alpha: f32,
 }
 
 @group(0) @binding(0) var tex: binding_array<texture_2d<f32>, 512>;
@@ -22,7 +21,6 @@ fn vs_main(@location(0) pos: vec3f, @location(1) uv: vec2f, @location(2) tex_idx
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4f {
     var color = textureSample(tex[input.tex_idx], tex_sampler, input.uv);
-    color.a *= input.alpha;
 
     return color;
 }

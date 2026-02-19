@@ -173,4 +173,6 @@ impl AppSurface {
             },
         }
     }
+
+    fn init(&self) {}
 }

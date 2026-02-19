@@ -1,14 +1,15 @@
 use wgpu::*;
 
+use crate::{MAX_INDEX, MAX_VERTEX};
+
 pub struct Buffers {
     pub vertex: Buffer,
     pub index: Buffer,
     pub projection: Buffer,
-}
 
-const MAX_TEXTURE: u32 = 512;
-const MAX_VERTEX: u32 = 512 * 4;
-const MAX_INDEX: u32 = 512 * 6;
+    pub vertex_len: u32,
+    pub index_len: u32,
+}
 
 impl Buffers {
     pub fn new(device: &Device) -> Self {
@@ -35,6 +36,8 @@ impl Buffers {
             vertex,
             index,
             projection,
+            vertex_len: 0,
+            index_len: 0,
         }
     }
 }
