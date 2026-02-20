@@ -89,13 +89,7 @@ impl DrawTextureObject {
             Vec2::new(-self.size.x / 2.0, -self.size.y / 2.0),
         ]
         .iter()
-        .map(|vertex| {
-            (rotation_mat * vertex)
-                + Vec2::new(
-                    self.origin.x + self.size.x / 2.0,
-                    self.origin.y + self.size.y / 2.0,
-                )
-        })
+        .map(|vertex| (rotation_mat * vertex) + Vec2::new(self.origin.x, self.origin.y))
         .collect::<Vec<Vec2>>();
 
         let rect = [
